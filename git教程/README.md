@@ -82,3 +82,34 @@ git remote rm origin 删除关联的origin的远程库
 ```
 
 <img src="README.assets/image-20240426210128759.png" alt="image-20240426210128759" style="zoom:33%;" />
+
+
+
+## git解决大文件上传
+
+需要安装
+
+下载地址：https://git-lfs.com/
+
+
+
+安装完成后，进入安装后的目录，打开 GitBash，执行 
+
+```
+git lfs install
+```
+
+![image-20240529152707723](README.assets/image-20240529152707723.png)
+
+![image-20240529152742501](README.assets/image-20240529152742501.png)
+
+到仓库目录，打开 GitBash，追踪需要上传的大文件
+
+```
+ git lfs track 具体文件名
+```
+
+
+
+添加要上传的文件属性，(**要先添加文件属性，不然有可能会失败**)
+
