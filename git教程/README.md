@@ -14,7 +14,7 @@
 
 
 
-# 二、将本地程序上传至远程仓库
+# 二、首次将本地程序上传至远程仓库
 
 将本地仓库上传至远程仓库有两种方式，一种为https，另一种为ssh方式。
 
@@ -56,6 +56,15 @@ git push -u origin main
 
 
 
+# 第二次上传
+
+```
+git add README.md
+git commit -m "标注自己写"
+git branch -M main  //这一步看是否需要更换分支，正常有main/master其中一种，要自己在网站上看是哪一种分支。
+git push -u origin main
+```
+
 
 
 # 三、基本指令
@@ -87,7 +96,7 @@ git remote rm origin 删除关联的origin的远程库
 
 
 
-## git解决大文件上传
+## git解决大文件上传（还不完整）
 
 需要安装
 
