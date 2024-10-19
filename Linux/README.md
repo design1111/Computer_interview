@@ -732,61 +732,6 @@ GCC 编译器的编译流程是：预处理、编译、汇编和链接。
 
 
 
-## makefile
-
-Makefile 里面是由一系列的规则组成的，这些规则格式如下：
-
-```
-目标…... :  依赖文件集合…… 
- 命令 1 
- 命令 2 
- …… 
-```
-
-
-
-```
-  main: main.o input.o calcu.o 
-      gcc -o main  main.o input.o calcu.o 
-  main.o: main.c 
-      gcc -c main.c 
-  input.o: input.c 
-      gcc -c input.c 
-  calcu.o: calcu.c 
-      gcc -c calcu.c 
-   
- clean: 
-     rm *.o 
-     rm main 
-```
-
-**上述代码中所有行首需要空出来的地方一定要使用“TAB”键！不要使用空格键！**
-
-简洁版：
-
-```
-  objects = main.o input.o calcu.o
-  main: $(objects)  
-      gcc -o main $(objects) 
-  
-  .PHONY : clean 
-  
-  %.o : %.c 
-      gcc -c $<  
-   
-  clean: 
-	rm *.o 
-    rm main 
-```
-
-
-
-## shell指令
-
-### 查看进程
-
-可以通过 `ps` 命令查看进程相关属性和状态，这些信息包括进程所属用户，进程对应的程序，进程对 `cpu` 和内存的使用情况等信息。
-
 
 
 
