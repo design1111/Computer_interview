@@ -48,7 +48,61 @@ https://www.linaro.org/downloads/
 
 然后重启vscode就能打开了。但是每次打开都需要登录密码。
 
+## gcc/g++
+
+c语言使用gcc命令；c++程序使用g++命令。
+
+（1）预处理
+
+展开头文件，删除注释、空行等无用内容，替换宏定义。
+
+```
+gcc -E main.c -o main.i
+```
+
+（2）编译
+
+检查语法错误，如有错误则报错，没错则生成汇编文件。
+
+```
+gcc -S main.i -o main.s           //注意：这里-S为大写
+```
+
+（3）汇编
+
+将编译文件生成二进制目标文件。
+
+```
+gcc -c main.s -o main.o
+```
+
+（4）链接
+
+将目标文件连接库文件，最终生成机器能够运行的二进制可执行程序。
+
+```
+gcc main.o -o main
+```
+
+
+
+.out是可执行文件，相当于win上的exe；
+
+.o是编译中间目标文件，相当于win上的.obj；
+
+.a是静态库，多个.o练链接得到，用于静态链接；
+
+.so是共享库，用于动态链接，相当于win上.dll；
+
+
+
 ## makefile
+
+参考：[Makefile(超详细一文读懂)-CSDN博客](https://blog.csdn.net/qq_51753728/article/details/142262405)
+
+**注意：要了解make指令，需要先了解gcc命令**
+
+
 
 Makefile 里面是由一系列的规则组成的，这些规则格式如下：
 
@@ -170,6 +224,850 @@ objects += calcu.o
 一开始变量 objects 的值为“main.o input.o”，后面我们给他追加了一个“calcu.o”，因此变量 objects 变成了“main.o input.o calcu.o”，这个就是变量的追加。
 
 ![image-20240922100454500](Linux驱动开发.assets/image-20240922100454500.png)
+
+
+
+### 预定义变量
+
+- 自定义变量：`变量名=变量值`，如`var=hello`
+
+- 预定义变量
+
+  - `AR` : 归档维护程序的名称，默认值为 ar
+  - `CC `: C 编译器的名称，默认值为 cc
+  - `CXX` : C++ 编译器的名称，默认值为 g++
+  - `$@` : 目标的完整名称
+  - `$<` : 第一个依赖文件的名称
+  - `$^`: 所有的依赖文件
+
+  
+
+CC：c编译器的名称，默认值为cc。cpp c预编译器的名称默认值为$(CC) -E
+
+```text
+CC = gcc
+```
+
+### include
+
+当 make 读取到 include 关键字的时候，会暂停读取当前的 Makefile，而是去读 include 包含的文件，读取结束后再继读取当前的 Makefile 文件。
+
+```
+include <filenames>
+```
+
+注意：include 关键字所在的行首可以包含一个或者是多个的空格（读取的时候空格会被自动的忽略），但是不能使用 Tab 开始，否则会把 include 当作式命令来处理。
+包含的多个文件之间要使用空格分隔开。使用 include 包含进来的 Makefile 文件中，如果存在函数或者是变量的引用，它们会在包含的 Makefile 中展开。
+
+
+
+### 打印信息
+
+（1）echo
+
+<font color=red>注:echo只能在target：后面的语句中使用，且前面是个TAB。</font>
+
+```
+all: 
+	@echo "Hello Makefile"
+	
+输出为：
+Hello Makefile
+```
+
+```
+all: 
+	echo "Hello Makefile"
+
+输出为：
+echo "Hello Makefile"
+Hello Makefile
+```
+
+可以看到，Makefile的命令也打印在了终端，要想不输出命令的内容，可以**在命令前面加上@**
+
+（2）info
+
+```
+$(info “here add the debug info”)
+```
+
+注,info信息,不打印信息所在行号
+
+（3）warning
+
+```
+$(warning “here add the debug info”)
+```
+
+（4）error
+
+```
+$(error “error: this will stop the compile”)
+```
+
+这个可以停止当前[makefile](https://so.csdn.net/so/search?q=makefile&spm=1001.2101.3001.7020)的编译
+
+
+
+### .d文件
+
+在[Makefile](https://so.csdn.net/so/search?q=Makefile&spm=1001.2101.3001.7020)中，我们的依赖关系可能会需要包含一系列的头文件，比如，如果我们的main.c中有一句“#include "defs.h"”，那么我们的依赖关系应该是： 
+
+```c
+main.o : main.c defs.h
+```
+
+如果main.c 中包含了很多头文件，那main.o后面要跟N多的.h。你在加入或删除头文件时，也需要小心地修改Makefile。
+
+2. 类似于如下的依赖关系只是建立了.o和.cc之间的依赖关系，那么.cc 改变时.o 会被重新编译。但.cc 中包含的.h改变时并不会影响到.o的重编。
+
+```css
+%.o: %.cc
+ @echo "=======> Compiling $@"
+ $(CPP) $(CPPFLAGS) -c -o $@ $<
+```
+
+所以需要建立* .o 和* .h的依赖。但往往*.h非常多，修改起来麻烦。
+
+3. 大多数的C/C++编译器都支持一个“-M”的选项，即自动找寻源文件中包含的头文件，并生成一个依赖关系。例如，如果我们执行下面的命令： 
+   
+    ```c
+    cc -M main.c 
+    ```
+    
+     其输出是： 
+    
+    ```c
+    main.o : main.c defs.h
+    ```
+    
+    于是由编译器自动生成的依赖关系，这样一来，你就不必再手动书写若干文件的依赖关系，而由编译器自动生成了。需要提醒一句的是，如果你使用GNU的C/C++编译器，你得用“-MM”参数，不然，“-M”参数会把一些标准库的头文件也包含进来。 
+    
+    ```css
+     cc -MM UartDev.cc 
+    ```
+    
+    会在UartDev.d中生成如下内容。
+
+UartDev.o UartDev.d: UartDev.cc ../../common/log.h UartDev.h ../../common/thread.h
+
+从而，当某个.h 文件改变时会引起.o .d的重新编译。
+
+当然还要在Makefile中包含.d文件：
+
+```c
+DEPS+= $(SRCS:.cc=.d)
+include $(DEPS)
+```
+
+## 公司make脚本
+
+执行顺序：
+
+step1：
+
+在输入./build_cssp命令之后，执行到
+
+```
+make all ARCH_TYPE=ARMv8 OS_TYPE=linux APP_TYPE=rts64  SHEND=1
+```
+
+此时all在makefile脚本中，为：
+
+```
+all: $(RTS_CSSP).elf secondary-outputs release
+```
+
+首先执行$(RTS_CSSP).elf，在makefile脚本中，为：
+
+```
+$(RTS_CSSP).elf: $(VOS_LIB) $(RTP_LIB) $(CST_LIB)
+	@echo Building target: $@
+	@echo Invoking: Linux gcc linker
+	........
+```
+
+而，(RTS_CSSP).elf依赖于VOS_LIB、RTP_LIB和CST_LIB，首先到VOS_LIB中，在cssp_vos.mk脚本中，为：
+
+```
+VOS_LIB = $(VOS_DIR)/libvos.a
+$(VOS_LIB): $(VOS_OBJS)
+	$(AR) $(ARFLAGS) $(VOS_LIB) $(VOS_OBJS)
+```
+
+VOS_LIB依赖于VOS_OBJS，VOS_OBJS为vos目录下所有的xxx.o文件，xxx.o文件依赖于对应xxx.c文件，如下：
+
+```makefile
+$(VOS_DIR)/os/linux/%.o: $(VOS_DIR)/os/linux/%.c
+	@echo ++++++++osal++++++++
+	@echo Building file: $<
+	@echo Invoking: Linux gcc compiler
+	$(CC) $(CCFLAGS) $(VOS_INCLUDE_DIR) -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o"$@" "$<"
+	.......
+```
+
+执行完之后，执行下面程序的最后一句，将所有vos目录下的xxx.o文件静态链接为libvos.a文件【.a是静态库，多个.o练链接得到，用于静态链接】
+
+```makefile
+VOS_LIB = $(VOS_DIR)/libvos.a
+$(VOS_LIB): $(VOS_OBJS)
+	$(AR) $(ARFLAGS) $(VOS_LIB) $(VOS_OBJS)
+```
+
+此后以此将rtp和cst目录下c程序链接为对应静态库文件。
+
+再返回执行后续命令，生成cssp_rts64.elf和cssp_rts64.dump文件。
+
+```makefile
+$(RTS_CSSP).elf: $(VOS_LIB) $(RTP_LIB) $(CST_LIB)
+	@echo Building target: $@
+	@echo Invoking: Linux gcc linker
+	$(CC) -o $(CURRENT_DIR)/"$(RTS_CSSP).elf" $(LIBS) \
+		$(OBJS) $(USER_OBJS) \
+		$(VOS_OBJS) $(RTP_OBJS) $(CST_OBJS) $(LDFLAGS) 
+	$(OBJDUMP) $(OBJDUMP_FLAGS) $(CURRENT_DIR)/$(RTS_CSSP).elf > $(CURRENT_DIR)/$(RTS_CSSP).dump
+	$(OBJDUMP) -x $(CURRENT_DIR)/$(RTS_CSSP).elf |grep bss> $(CURRENT_DIR)/$(RTS_CSSP).bss
+	@echo Finished building target: $@
+	@echo ' '
+$(RTS_CSSP).elf.size: $(RTS_CSSP).elf
+	@echo Invoking: $(ARCH_TYPE) Linux Print Size
+	$(MYSIZE) $(CURRENT_DIR)/$(RTS_CSSP).elf  |$(TEE) $(CURRENT_DIR)/"$(RTS_CSSP).elf.size"
+	@echo Finished building: $@
+	@echo ' '
+```
+
+最后执行，开始语句：
+
+```makefile
+all: $(RTS_CSSP).elf secondary-outputs release
+release:
+	-$(MKDIR) $(RELEASEDIR)
+	-$(CP) $(RTS_CSSP).elf $(RELEASEDIR)/$(RTS_CSSP).elf
+	-$(CP) $(RTS_CSSP).dump $(RELEASEDIR)/$(RTS_CSSP).dump
+	-@echo ' '
+
+```
+
+将对应.elf和.dump文件移动到release目录下。
+
+
+
+### armv8tools.mk脚本
+
+```shell
+CROSS_COMPILE = aarch64-linux-gnu-
+
+AS  = $(CROSS_COMPILE)as	GNU 汇编器。实际上它是一族汇编器，因为它可以被编译或能够在各种不同平台上工作。
+LD	= $(CROSS_COMPILE)ld		是连接器，它把一些目标和归档文件结合在一起，重定位数据，并连接符号引用。通常，建立一个新编译程序的最后一步就是调用ld。
+CC	= $(CROSS_COMPILE)gcc
+CPP	= $(CROSS_COMPILE)gcc -E	展开头文件，删除注释、空行等无用内容，替换宏定义。
+AR	= $(CROSS_COMPILE)ar 建立、修改、提取归档文件。归档文件是包含多个文件内容的一个大文件，其结构保证了可以恢复原始文件内容。
+NM	= $(CROSS_COMPILE)nm				列出目标文件中的符号。
+STRIP   = $(CROSS_COMPILE)strip			丢弃目标文件中的全部或者特定符号。
+OBJCOPY = $(CROSS_COMPILE)objcopy		把一种目标文件中的内容复制到另一种类型的目标文件中。
+OBJDUMP = $(CROSS_COMPILE)objdump        反汇编
+RANLIB	= $(CROSS_COMPILE)ranlib    产生归档文件索引，并将其保存到这个归档文件中。在索引中列出了归档文件各成员所定义的可重分配目标文件。
+SIZE    = $(CROSS_COMPILE)size   列出目标文件每一段的大小以及总体的大小。默认情况下，对于每个目标文件或者一个归档文件中的每个模块只产生一行输出。
+
+CCFLAGS += -march=armv8-a 
+CCFLAGS += -D_ARCH_TYPE_ARMV8
+
+OBJDUMP_FLAGS = -Dst
+```
+
+
+
+### common.mk脚本
+
+```shell
+
+# bin
+RM := rm -rf
+TEE := tee
+CP := cp -fR
+MKDIR := mkdir -p
+MYSIZE := size
+
+################################################################################
+# makefile: common configuration
+# created first vern. bais@2021.01
+# add PRD_MD ...&&CST_XXX macros for products bais@2024.09
+################################################################################
+
+#SH_VENDOR_ID=$(VENDOR_ID)
+#SH_PRODUCT_TYPE=$(PRODUCT_TYPE)
+#SH_ARCH_TYPE=$(ARCH_TYPE)
+#SH_OS_TYPE=$(OS_TYPE)
+SH_APP_TYPE=$(APP_TYPE)     在build_cssp文件中定义：rts64
+SH_BUILD_TYPE=$(BUILD_TYPE)	在build_cssp文件中定义：cross
+
+#CCFLAGS += -DVENDOR_ID=$(SH_VENDOR_ID)
+#CCFLAGS += -DPRODUCT_TYPE=$(SH_PRODUCT_TYPE)
+#CCFLAGS += -DARCH_TYPE=$(SH_ARCH_TYPE)
+#CCFLAGS += -DOS_TYPE=$(SH_OS_TYPE)
+CCFLAGS += -DAPP_TYPE=$(SH_APP_TYPE)
+CCFLAGS += -DBUILD_TYPE=$(SH_BUILD_TYPE)
+
+
+# product
+include $(CURRENT_DIR)/product_info.mk
+
+
+# arch       ARCH_TYPE在build_css文件中定义，这里为if判断，判断为那种架构，如果ARCH_TYPE为ARMv8，则选择armv8tools.mk
+ifeq ($(ARCH_TYPE),x86)
+include $(CURRENT_DIR)/x86tools.mk
+endif
+ifeq ($(ARCH_TYPE),ARMv7)
+include $(CURRENT_DIR)/armv7tools.mk
+endif
+ifeq ($(ARCH_TYPE),ARMv8)
+include $(CURRENT_DIR)/armv8tools.mk
+endif
+
+
+# os
+ifeq ($(OS_TYPE),linux)
+include $(CURRENT_DIR)/linux.mk
+CCFLAGS += -DVOS_LINUX
+CCFLAGS += -DCST_OSTHRED_USER_BASE=1
+endif
+ifeq ($(OS_TYPE),seL4)
+include $(CURRENT_DIR)/seL4.mk
+CCFLAGS += -DVOS_SEL4
+#Note:lx-seL4支持的app任务优先级是从4开始
+CCFLAGS += -DCST_OSTHRED_USER_BASE=3
+endif
+
+
+# out 
+APPOUT := cssp_rts                          
+ifeq ($(APP_TYPE),rts64)       APP_TYPE在build_cssp文件中，一般定义为：rts64
+APPOUT := cssp_rts64
+endif
+ifeq ($(APP_TYPE),rts32)
+APPOUT := cssp_rts32
+endif
+```
+
+
+
+### cssp_cst、cssp_rtp和cssp_vos
+
+等三个文件，三个文件格式相同，下面为删减版：
+
+```shell
+# dir 
+CST_DIR = $(PRDTDIR)/cst
+
+# lib
+CST_LIB = $(CST_DIR)/libcst.a
+CST_LIB_FLAG = -lcst
+CST_RED_DIR = -I $(CST_DIR)/red
+
+CST_INCLUDE_DIR = \
+-I $(ROOTDIR) \
+-I $(CST_DIR) \
+-I $(CST_DIR)/product \
+-I $(CST_DIR)/cstbus \
+-I $(CST_DIR)/cstlib \
+-I $(CST_DIR)/diag \
+-I $(CST_DIR)/com \
+-I $(CST_DIR)/com/adapt \
+
+
+ifeq ($(PRD_RED),1)
+CST_INCLUDE_DIR += $(CST_RED_DIR)
+endif
+
+CST_INCLUDE_DIR += $(RTP_INCLUDE_DIR)
+CST_INCLUDE_DIR += $(VOS_INCLUDE_DIR)
+
+
+# obj
+CST_OBJS = \
+$(CST_DIR)/product/Cst.o \
+$(CST_DIR)/product/vern.o \
+$(CST_DIR)/cstbus/BHB_Interface.o \
+$(CST_DIR)/cstbus/MasterCardMana.o \
+$(CST_DIR)/cstbus/ProtoLinkAdapt.o \
+
+
+
+ifeq ($(PRD_RED),1)
+CST_OBJS += \
+$(CST_DIR)/red/red_app_diag.o \
+$(CST_DIR)/red/red_app_file.o \
+$(CST_DIR)/red/red_app_sync.o \
+$(CST_DIR)/red/red_link_config.o
+endif
+
+# dep
+CST_C_DEPS = \
+$(CST_DIR)/product/Cst.d \
+$(CST_DIR)/product/vern.d \
+$(CST_DIR)/cstbus/BHB_Interface.d \
+$(CST_DIR)/cstbus/MasterCardMana.d \
+
+
+ifeq ($(PRD_RED),1)
+CST_C_DEPS += \
+$(CST_DIR)/red/red_app_diag.d \
+$(CST_DIR)/red/red_app_file.d \
+$(CST_DIR)/red/red_app_sync.d \
+$(CST_DIR)/red/red_link_config.d
+endif
+
+# all output file
+CST_OUTPUT = $(CST_LIB) $(CST_OBJS) $(CST_C_DEPS)   包含.o .d文件
+
+
+$(CST_DIR)/product/%.o: $(CST_DIR)/product/%.c    product目录下xx.o文件依赖该目录下.c文件
+	@echo ++++++++cst++++++++
+	@echo Building file: $<      本句中$< 表示文件目录及文件名
+	@echo Invoking: Linux gcc compiler
+	$(CC) $(CCFLAGS) $(CST_INCLUDE_DIR) -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o"$@" "$<"
+	解释：
+	$(CC) : aarch64-linux-gnu-gcc   在armv8tool.mk文件中定义
+	$(CCFLAGS) : -DAPP_TYPE=rts64 -DBUILD_TYPE= -march=armv8-a -D_ARCH_TYPE_ARMV8 -DPLC_CODE_SHM_MEM  。。。 在common.mk和armv8tool.mk以及linux.mk文件中定义，此句非常长
+	-MF"$(@:%.o=%.d)"  ： -MF"文件目录/Cst.d"
+	-MT"$(@:%.o=%.d)"  : -MT"文件目录/Cst.d"
+	-o"$@" "$<"        : -o"文件目录/Cst.o" "文件目录/Cst.c"
+	
+	@echo Finished building: $<
+	@echo ' '
+
+$(CST_DIR)/cstbus/%.o: $(CST_DIR)/cstbus/%.c
+	@echo Building file: $<
+	@echo Invoking: Linux gcc compiler
+	$(CC) $(CCFLAGS) $(CST_INCLUDE_DIR) -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o"$@" "$<"
+	@echo Finished building: $<
+	@echo ' '
+
+
+
+
+$(CST_MIN_LIB): $(CST_MIN_OBJS)
+	$(AR) $(ARFLAGS) $(CST_MIN_LIB) $(CST_MIN_OBJS)
+
+$(CST_LIB): $(CST_OBJS)
+	$(AR) $(ARFLAGS) $(CST_LIB) $(CST_OBJS)
+
+```
+
+```shell
+$(CST_MIN_LIB): $(CST_MIN_OBJS)
+	$(AR) $(ARFLAGS) $(CST_MIN_LIB) $(CST_MIN_OBJS)
+
+$(CST_LIB): $(CST_OBJS)
+	$(AR) $(ARFLAGS) $(CST_LIB) $(CST_OBJS)
+	
+	
+解释：
+$(CST_MIN_LIB) ：  暂不清楚
+$(CST_MIN_OBJS) ：  暂不清楚
+$(AR) 			:  aarch64-linux-gnu-ar   在armv8tools.mk文件中定义
+$(ARFLAGS)      :  crv                    在linux.mk文件中定义
+
+
+最后一句解释：
+$(CST_LIB)   ： 在本文件开始为 当前目录/libcst.a
+$(CST_OBJS) :  为cst目录下所有xx.o文件
+
+
+```
+
+
+
+### makefile脚本
+
+```makefile
+################################################################################
+# makefile: link libs.a
+# bais@2021.01
+################################################################################
+
+# current dir
+CURRENT_DIR = $(shell pwd)       		build目录
+#CURRENT_DIR = .
+# root dir
+ROOTDIR = $(CURRENT_DIR)/../..   		
+PRDTDIR = $(CURRENT_DIR)/..
+# release dir
+RELEASEDIR = $(ROOTDIR)/release
+# lib_so dir
+LIBSODIR = $(PRDTDIR)/build/lib_so
+
+#CCFLAGS :=
+
+# All of the sources participating in the build are defined here
+include $(CURRENT_DIR)/common.mk
+
+include $(CURRENT_DIR)/cssp_vos.mk
+include $(CURRENT_DIR)/cssp_rtp.mk
+include $(CURRENT_DIR)/cssp_cst.mk
+
+RTS_CSSP = $(APPOUT)     这里APPOUT来自common.mk脚本，定义为cssp_rts或cssp_rts32 或 cssp_rts64
+
+# Add inputs and outputs from these tool invocations to the build variables
+ELFSIZE += \
+$(RTS_CSSP).elf.size \    
+
+# All Target
+all: $(RTS_CSSP).elf secondary-outputs release
+
+$(RTS_CSSP).elf: $(VOS_LIB) $(RTP_LIB) $(CST_LIB)
+	@echo Building target: $@
+	@echo Invoking: Linux gcc linker
+	$(CC) -o $(CURRENT_DIR)/"$(RTS_CSSP).elf" $(LIBS) \
+		$(OBJS) $(USER_OBJS) \
+		$(VOS_OBJS) $(RTP_OBJS) $(CST_OBJS) $(LDFLAGS) 
+	$(OBJDUMP) $(OBJDUMP_FLAGS) $(CURRENT_DIR)/$(RTS_CSSP).elf > $(CURRENT_DIR)/$(RTS_CSSP).dump
+	$(OBJDUMP) -x $(CURRENT_DIR)/$(RTS_CSSP).elf |grep bss> $(CURRENT_DIR)/$(RTS_CSSP).bss
+	@echo Finished building target: $@
+	@echo ' '
+$(RTS_CSSP).elf.size: $(RTS_CSSP).elf
+	@echo Invoking: $(ARCH_TYPE) Linux Print Size
+	$(MYSIZE) $(CURRENT_DIR)/$(RTS_CSSP).elf  |$(TEE) $(CURRENT_DIR)/"$(RTS_CSSP).elf.size"
+	@echo Finished building: $@
+	@echo ' '
+# Other Targets
+
+clean:
+	-$(RM) $(OBJS) $(C_DEPS) $(EXECUTABLES) $(S_UPPER_DEPS)
+	-$(RM) $(CURRENT_DIR)/*.elf  $(CURRENT_DIR)/*.elf.size  $(CURRENT_DIR)/*.bss  $(CURRENT_DIR)/*.dump
+	@echo remove voslib rtplib cstlib output files
+	-$(RM) $(CST_OUTPUT) $(RTP_OUTPUT) $(VOS_OUTPUT)
+	-$(RM) $(RELEASEDIR)/$(RTS_CSSP).elf
+	-$(RM) $(RELEASEDIR)/$(RTS_CSSP).bss
+	-$(RM) $(RELEASEDIR)/$(RTS_CSSP).dump
+	-@echo ' '
+
+release:
+	-$(MKDIR) $(RELEASEDIR)
+	-$(CP) $(RTS_CSSP).elf $(RELEASEDIR)/$(RTS_CSSP).elf
+	-$(CP) $(RTS_CSSP).bss $(RELEASEDIR)/$(RTS_CSSP).bss
+	-$(CP) $(RTS_CSSP).dump $(RELEASEDIR)/$(RTS_CSSP).dump
+	-@echo ' '
+
+secondary-outputs: $(ELFSIZE)
+
+.PHONY: all clean dependents
+.SECONDARY:
+
+```
+
+```makefile
+$(RTS_CSSP).elf: $(VOS_LIB) $(RTP_LIB) $(CST_LIB)
+	@echo Building target: $@
+	@echo Invoking: Linux gcc linker
+	$(CC) -o $(CURRENT_DIR)/"$(RTS_CSSP).elf" $(LIBS) \
+		$(OBJS) $(USER_OBJS) \
+		$(VOS_OBJS) $(RTP_OBJS) $(CST_OBJS) $(LDFLAGS) 
+	$(OBJDUMP) $(OBJDUMP_FLAGS) $(CURRENT_DIR)/$(RTS_CSSP).elf > $(CURRENT_DIR)/$(RTS_CSSP).dump
+	$(OBJDUMP) -x $(CURRENT_DIR)/$(RTS_CSSP).elf |grep bss> $(CURRENT_DIR)/$(RTS_CSSP).bss
+	@echo Finished building target: $@
+	@echo ' '
+解释：
+$(RTS_CSSP).elf   ： 为cssp_rts64.elf，来自common.mk脚本
+$(VOS_LIB) $(RTP_LIB) $(CST_LIB)  : 分别为libvos.a librtp.a 和 libcst.a，各自来自cssp_xxx.mk文件
+$@   ： cssp_rts64.elf
+$(CC)  ： aarch64-linux-gnu-gcc
+$(CURRENT_DIR) :  当前build目录
+$(LIBS)   ： -lm，在linux.mk脚本中定义
+$(OBJS)  ： \，在linux.mk脚本中定义
+$(USER_OBJS)  ： 为空，在linux.mk脚本中定义
+$(VOS_OBJS) $(RTP_OBJS) $(CST_OBJS) ： 各自对应目录下xx.o文件，在各自cssp_xx.mk脚本中定义
+$(LDFLAGS)     ： -lrt -lm -lpthread，在linux.mk脚本中定义
+$(OBJDUMP)   ： aarch64-linux-gnu-objdump，在armv8tools.mk脚本中
+$(OBJDUMP_FLAGS)  ： -Dst，在armv8tools.mk脚本中
+$(CURRENT_DIR)/$(RTS_CSSP).elf  ：当前目录下/cssp_rts64.elf
+> $(CURRENT_DIR)/$(RTS_CSSP).dump  : 将信息写入当前目录下/cssp_rts64.dump
+
+```
+
+```makefile
+$(RTS_CSSP).elf.size: $(RTS_CSSP).elf
+	@echo Invoking: $(ARCH_TYPE) Linux Print Size
+	$(MYSIZE) $(CURRENT_DIR)/$(RTS_CSSP).elf  |$(TEE) $(CURRENT_DIR)/"$(RTS_CSSP).elf.size"
+	@echo Finished building: $@
+	@echo ' '
+	
+解释：
+$(MYSIZE)  ： 为size，在common.mk脚本中
+$(TEE)     ： tee，在common.mk脚本中
+
+```
+
+```makefile
+release:
+	-$(MKDIR) $(RELEASEDIR)
+	-$(CP) $(RTS_CSSP).elf $(RELEASEDIR)/$(RTS_CSSP).elf
+	-$(CP) $(RTS_CSSP).bss $(RELEASEDIR)/$(RTS_CSSP).bss
+	-$(CP) $(RTS_CSSP).dump $(RELEASEDIR)/$(RTS_CSSP).dump
+	-@echo ' '
+
+解释：
+-$(MKDIR)  ： mkdir -p ,在common.mk脚本中定义
+$(RELEASEDIR)  ： 为release目录，在本文件开始时定义
+-$(CP)   ：cp -fR，在common.mk脚本中定义
+		-f 或 --force：强制复制，即使目标文件已存在也会覆盖，而且不给出提示。
+		-r 或 --recursive：用于复制目录及其所有的子目录和文件，如果要复制目录，需要使用该选项。
+```
+
+
+
+## 交叉编译链
+
+### objdump命令
+
+显示程序信息，函数汇编等，常用于调试。
+
+- -D, --disassemble-all Display assembler contents of all sections
+- -S, --source Intermix source code with disassembly
+
+把反汇编内容输出到main.txt中：
+
+```shell
+[root@localhost toolchains]# arm-none-linux-gnueabihf-objdump -D main > main.txt
+[root@localhost toolchains]# ll
+总用量 82
+-rwxrwxrwx 1 root root 13152 7月   2 23:42 main
+-rwxrwxrwx 1 root root   255 7月   2 23:30 main.c
+-rwxrwxrwx 1 root root 69373 7月   2 23:53 main.txt
+```
+
+### size命令
+
+显示可执行程序中各个段占用的大小。
+
+```shell
+[root@localhost toolchains]# arm-none-linux-gnueabihf-size main
+   text	   data	    bss	    dec	    hex	filename
+   1143	    304	     16	   1463	    5b7	main
+```
+
+
+我们在main.c中增加全局变量int aaa = 2;，重新编译后可以看到data段增加了4个字节：
+
+```shell
+[root@localhost toolchains]# arm-none-linux-gnueabihf-gcc -g main.c -o main
+[root@localhost toolchains]# arm-none-linux-gnueabihf-size main
+   text	   data	    bss	    dec	    hex	filename
+   1143	    308	     16	   1467	    5bb	main
+```
+
+### nm命令
+
+该命令主要用于显示可执行程序的符号。
+
+```shell
+[root@localhost toolchains]# arm-none-linux-gnueabihf-nm main
+00010170 r __abi_tag
+         U abort@GLIBC_2.4
+00010488 r all_implied_fbits
+00010534 r all_implied_fbits
+00021048 B __bss_end__
+00021048 B _bss_end__
+00021038 B __bss_start
+00021038 B __bss_start__
+000103c0 t call_weak_fn
+00021038 b completed.0
+00021028 D __data_start
+00021028 W data_start
+000103e4 t deregister_tm_clones
+00010434 t __do_global_dtors_aux
+00020f0c d __do_global_dtors_aux_fini_array_entry
+0002102c D __dso_handle
+00020f10 d _DYNAMIC
+00021038 D _edata
+00021048 B __end__
+00021048 B _end
+0001047c T _fini
+0001044c t frame_dummy
+00020f08 d __frame_dummy_init_array_entry
+000105cc r __FRAME_END__
+         U free@GLIBC_2.4
+00021000 d _GLOBAL_OFFSET_TABLE_
+         w __gmon_start__
+0002103c B g_uninit
+00021030 D g_val
+00010334 T _init
+00010484 R _IO_stdin_used
+         U __libc_start_main@GLIBC_2.34
+00010450 T main
+         U malloc@GLIBC_2.4
+         U puts@GLIBC_2.4
+00010408 t register_tm_clones
+0001039c T _start
+00021044 b s_tmp.0
+00021034 D str
+00021040 b s_uninit
+00021038 D __TMC_END__
+```
+
+
+
+
+符号说明：
+
+> 对于每一个符号来说，其类型如果是小写的，则表明该符号是local的。大写则表明该符号是global(external)的
+>
+> A：该符号的值是绝对的，在以后的链接过程中，不允许改变。这样的符号，常常出现在中断向量表中，例如用符号来表示各个中断向量函数在中断向量表中的位置。
+> B：该符号的值出现在非初始化数据段BSS中。例如，一个文件中定义全局 static int s_int。则符号s_int 类型为b，位于bss section中。其值表示该符号在bss段的偏移。一般而言，bss段分配于RAM中。
+> C：该符号为common。common symbol是未初始化数据段。该符号没有包含于一个普通section中。只有在链接过程中才进行分配。符号的值表示要分配的字节数。例如，在一个c文件中，定义int g_no_init，并且该符号在别的地方会被引用，则该符号类型就是C，否则为B。
+> D：该符号位于初始化数据段中。一般来说，分配到data section中。比如，全局变量 int g_init = 2;
+> G：该符号也位于初始化数据段。主要用于small object，提高访问small data object的一种方式。
+> I：该符号是对另一个符号的间接引用。
+> N：该符号是一个debugging符号
+> R：该符号位于只读数据区。比如，全局变量 const int const_int = 0; 如果在一个函数中定义 const char* test = “abc”; const int a = 2;使用nm都不会得到符号信息。但是字符串"abc"分配于只读存储器中，test 在rodata section中，大小为4
+> S：符号位于非初始化数据区，用于 small object
+> T：符号位于代码区 text section
+> U：符号在当前文件中是未定义的，即该符号的定义在别的文件中。比如，当前文件中调用另一个文件中的函数，在这个本目标文件中，函数就是未定义的。但是在定义它的文件中，类型为T。但是对于全局变量来说，在定义它的文件中，符号类型是C，在使用它的文件中，类型是U。
+> V：该符号是一个weak object
+> ？：该符号类型没有定义
+
+### addr2line命令
+
+将函数在可执行程序文件中的地址转换成源代码文件名和行数。
+命令：
+arm-none-linux-gnueabihf-addr2line -e main -psfC addr地址
+
+```shell
+[root@localhost toolchains]# arm-none-linux-gnueabihf-gcc -g main.c -o main
+[root@localhost toolchains]# arm-none-linux-gnueabihf-readelf -s main|grep main
+    69: 00000000     0 FILE    LOCAL  DEFAULT  ABS main.c
+   107: 00010451    44 FUNC    GLOBAL DEFAULT   13 main
+[root@localhost toolchains]# arm-none-linux-gnueabihf-addr2line -e main -psfC 0x10451
+main at main.c:11
+[root@localhost toolchains]# cat -n  main.c 
+     1	#include <stdlib.h>
+     2	#include <stdio.h>
+     3	
+     4	int g_val = 12;
+     5	int g_uninit;
+     6	int aaa = 2;
+     7	const char * str = "who am I?";
+     8	static char s_uninit;
+     9	
+    10	int main()
+    11	{
+    12		printf("hello world!\n");
+    13		int* p = malloc(sizeof(int));
+    14		static int s_tmp = 0;
+    15		free(p);
+    16		return 0;
+    17	}
+
+```
+
+### objcopy命令
+
+将目标文件的一部分或者全部内容拷贝到另外一个目标文件中，或者实现目标文件的格式转换。通过指定输入目标为二进制文件(例如-O binary)，objcopy可以生成原始格式的二进制文件。当objcopy生成一个原始格式的二进制文件的时候，它会生成输入的目标文件的基本内存拷贝，然后所有的标号和可重定位信息都会被去掉。内存拷贝开始于最低段的加载地址，拷贝到输出文件。
+常用的选项有：
+
+```shell
+[root@localhost test]# objcopy -O srec main main.srec #将文件转换成S-record格式
+[root@localhost test]# objcopy -O binary main main.bin #将文件转换成rawbinary 格式
+[root@localhost test]# objcopy -S main main.stripall #生成一个不含重定位以及标号目标文件
+[root@localhost test]# objcopy -R .comment main main.remove #去掉指定名称的节
+[root@localhost test]# objcopy --add-section mysection=hello_text main main.add #添加一个自定义的节到可执行文件并将一个文件内容添加到其中
+[root@localhost test]# objcopy -j mysection main.add section_hello #将指定的段拷贝出来
+[root@localhost test]# objcopy --only-keep-debug main.debug main.debuginfo # 生成调试信息文件
+[root@localhost test]# objcopy --strip-debug main.debug main.stripdebug #生成 不含调试信息的可执行文件
+[root@localhost test]# objcopy --add-gnu-debuglink=main.debuginfo main.stripdebug #为不含调试信息的可执行文件添加调试信息
+```
+
+### stings命令
+
+显示可执行程序中能打印出来的字符串。可以看到代码里面写的常量字符串“who am I?”、“hello world!”等等。
+
+```shell
+[root@localhost toolchains]# arm-none-linux-gnueabihf-strings main
+/lib/ld-linux-armhf.so.3
+malloc
+__libc_start_main
+puts
+free
+abort
+libc.so.6
+GLIBC_2.4
+GLIBC_2.34
+__gmon_start__
+F{`xh
+who am I?
+hello world!
+GCC: (GNU Toolchain for the Arm Architecture 11.2-2022.02 (arm-11.14)) 11.2.1 20220111
+aeabi
+.shstrtab
+.interp
+.note.ABI-tag
+.gnu.hash
+.dynsym
+.dynstr
+.gnu.version
+.gnu.version_r
+.rel.dyn
+.rel.plt
+.init
+.text
+.fini
+.rodata
+.ARM.exidx
+.eh_frame
+.init_array
+.fini_array
+.dynamic
+.got
+.data
+.bss
+.comment
+.ARM.attributes
+
+```
+
+### strip命令
+
+该命令主要用于剥离可执行程序中的符号表。可以看到，执行strip后可执行程序变小很多。嵌入式开发往往会用到strip命令节省flash空间。
+
+```shell
+[root@localhost toolchains]# ll
+总用量 14
+-rwxrwxrwx 1 root root 13116 7月   2 23:00 main
+-rwxrwxrwx 1 root root   242 7月   2 22:59 main.c
+[root@localhost toolchains]# arm-none-linux-gnueabihf-strip main
+[root@localhost toolchains]# ll
+总用量 6
+-rwxrwxrwx 1 root root 5600 7月   2 23:01 main
+-rwxrwxrwx 1 root root  242 7月   2 22:59 main.c
+
+```
+
+### 指令集合
+
+```css
+arm-xxxx-linux-gcc			# GNU的C语言编译器
+arm-xxxx-linux-g++			# GNU的C++语言编译器
+arm-xxxx-linux-cpp			# GNU的C的预编译器
+arm-xxxx-linux-gcov			# gcc 的辅助测试工具，用来分析和优化程序
+arm-xxxx-linux-addr2line	# 将你要找的地址转成文件和行号，它要使用 debug 信息
+arm-xxxx-linux-ar			# 产生、修改和解开一个存档文件
+arm-xxxx-linux-as			#（汇编器）： 将汇编语言代码转换为目标文件。它将 GNU C 编译器 gcc 输出汇编语言源文件转换为目标文件的工具。\
+							#   它将汇编代码翻译成机器码，生成目标文件，供后续链接器 ld 链接使用。
+arm-xxxx-linux-asv			# GNU的汇编器
+arm-xxxx-linux-c++filt		# C++ 和 Java 中有一种重载函数，所用的重载函数最后会被编译转化成汇编的标，c++filt 就是实现这种反向的转化，根据标号得到函数名
+arm-xxxx-linux-gprof		# GNU汇编器预编译器
+arm-xxxx-linux-gfortran		# Fortran 编译器
+arm-xxxx-linux-ld			# GNU的连接器
+arm-xxxx-linux-nm			# 列出目标文件的符号和对应的地址
+arm-xxxx-linux-objcopy		# 将某种格式的目标文件转化成另外格式的目标文件
+arm-xxxx-linux-objdump		# 显示目标文件的信息
+arm-xxxx-linux-ranlib		# 为一个存档文件产生一个索引，并将这个索引存入存档文件中
+arm-xxxx-linux-readelf		# 显示 elf 格式的目标文件的信息
+arm-xxxx-linux-size			# 显示目标文件各个节的大小和目标文件的大小
+arm-xxxx-linux-strings		# 打印出目标文件中可以打印的字符串，有个默认的长度，为4
+arm-xxxx-linux-strip		# 剥掉目标文件的所有的符号信息
+```
 
 
 
@@ -443,6 +1341,33 @@ finish —— 在一个函数内部，执行到当前函数返回，然后停下
 gcc -g -Wall program.c -o program
 g++ -g -Wall program1.c program2.c -o program 
 ```
+
+
+
+### 公司补充
+
+```css
+set print thread off   不显示线程启动和退出信息
+
+info thread   显示线程信息
+
+netstat -anl | grep 1200 查看控制器RTS是否正常
+
+handle SIG32 nostop    //当多线程编程时，在线程退出时会产生SIG32信号。这个命令是用来关闭
+
+
+```
+
+### handle命令
+
+信号是一种软中断，是一种处理异步事件的方法。一般来说，操作系统都支持许多信号。尤其是UNIX，比较重要应用程序一般都会处理信号。UNIX定义了许 多信号，比如SIGINT表示中断字符信号，也就是Ctrl+C的信号，SIGBUS表示硬件故障的信号；SIGCHLD表示子进程状态改变信号； SIGKILL表示终止程序运行的信号，等等。信号量编程是UNIX下非常重要的一种技术。
+
+GDB有能力在你调试程序的时候处理任何一种信号，你可以告诉GDB需要处理哪一种信号。你可以要求GDB收到你所指定的信号时，马上停住正在运行的程序，以供你进行调试。你可以用GDB的handle命令来完成这一功能。
+
+handle
+在GDB中定义一个信号处理。信号可以以SIG开头或不以 SIG开头，可以用定义一个要处理信号的范围（如：SIGIO-SIGKILL，表示处理从SIGIO信号到SIGKILL的信号，其中包括SIGIO， SIGIOT，SIGKILL三个信号），也可以使用关键字all来标明要处理所有的信号。一旦被调试的程序接收到信号，运行程序马上会被GDB停住，以 供调试。其可以是以下几种关键字的一个或多个。
+
+
 
 
 
