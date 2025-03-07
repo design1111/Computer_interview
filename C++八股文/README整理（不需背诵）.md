@@ -662,6 +662,24 @@ class Shape {
 
 = 0 告诉编译器，函数没有主体，上面的虚函数是**纯虚函数**。
 
+## 虚拟地址空间
+
+- **bss段（bss segment）：**bss是Block Started by Symbol的简称，用来存放程序中未初始化的全局变量的内存区域，属于静态内存分配。
+- **data段（data segment）**：用来存放程序中已初始化的全局变量的内存区域，属于静态内存分配。
+- **text段（text segment）（代码段）：**用来存放程序执行代码的内存区域。这部分区域的大小在程序运行前就已经确定，并且内存区域通常属于只读（某些架构也允许代码段为可写，即允许修改程序）。也有可能包含一些只读的常数变量，例如字符串常量等。
+- **堆（heap）：**用于存放进程运行中被动态分配的内存段，它的大小并不固定，可动态扩张或缩减。
+- **栈（stack）：**用户存放程序临时创建的局部变量，也就是说我们函数括弧“{}”中定义的变量（但不包括static声明的变量，static意味着在data段中存放变量）。除此以外，在函数被调用时，其参数也会被压入发起调用的进程栈中，并且待到调用结束后，函数的返回值也会被存放回栈中。
+
+![img](README整理（不需背诵）.assets/ab4c927f0fd66f2b12e8b8638e5f054a.png)
+
+### bss段与data段的区别
+
+在初始化时 bss 段部分将会清零。bss 段属于静态内存分配，即程序一开始就将其清零了。
+比如，在C语言之类的程序编译完成之后，已初始化的全局变量保存在.data 段中，未初始化的全局变量保存在.bss 段中。
+
+- text 和 data 段都在**可执行文件中**，由系统从可执行文件中加载；
+- 而 bss 段**不在可执行文件中**，由系统初始化。
+
 
 
 ## 内存隔离
@@ -1145,6 +1163,36 @@ union{
     printf("0x%02x\n",u.i);
 ```
 
+## strcpy和memcpy区别
+
+strcpy和memcpy是C语言中用于复制内存内容的函数，但它们有一些区别：
+
+参数类型不同：
+
+- strcpy的参数是两个字符数组（字符串），通常用于将一个字符串复制到另一个字符串中。例如：strcpy(dest, src)。
+- memcpy的参数是两个void指针和一个size_t类型的整数，可以用于任意类型的内存块复制。例如：memcpy(dest, src, size)。
+
+复制方式不同：
+
+- strcpy会自动在源字符串末尾添加'\0'作为字符串结束标志，并将整个源字符串复制到目标字符串中（包括'\0'）。
+- memcpy仅按字节进行逐一复制，没有对数据进行解释或处理。
+
+安全性考虑：
+
+- strcpy没有提供边界检查，如果目标缓冲区不足以容纳源字符串，可能导致缓冲区溢出问题。
+- memcpy需要显式指定要复制的字节数，因此更加灵活且可以控制边界。
+
+​	
+
+## 怎么防止头文件重复调用导致的编译问题
+
+在C/C++中，可以通过使用头文件保护（header guards）或者#pragma once指令来防止头文件重复调用导致的编译问题。
+
+1. 头文件保护（Header Guards）：在头文件的开头和结尾添加预处理器指令，如下所示：
+   \#ifndef HEADER_NAME_H #define HEADER_NAME_H *// 头文件内容* #endif *// HEADER_NAME_H*
+   这样，在第一次包含该头文件时，`HEADER_NAME_H`宏会被定义，并且头文件内容会被包含。当再次遇到相同的头文件时，由于`HEADER_NAME_H`已经被定义，条件判断为假，则不会再次包含该头文件。
+2. \#pragma once指令：直接在头文件开头添加`#pragma once`指令即可。这是一种更简洁的方式，告诉编译器只包含该头文件一次。
+
 
 
 ## 常见关键字
@@ -1203,6 +1251,91 @@ volatile应该解释为“直接存取原始内存地址”比较合适，“易
 （2）在.h文件中定义：
 
 当你在头文件（`.h`文件）中定义宏时，==任何包含了这个头文件的源文件都可以使用这些宏==。这使得宏在多个文件间共享变得可能，非常适用于定义全局常量、工具宏（如计算数组大小的宏）或者在不同源文件间需要共享的配置选项。
+
+（3）宏定义注意问题：
+
+是宏定义仅仅是简单宏替换，它不负责 任何计算顺序。
+
+```
+#define  A   12+12
+#define  B	 10+10
+如果执行A*B = 12+12*10+10，而不是（12+12）*（10+10）
+```
+
+（4）带参数的宏定义
+
+宏替换只做替换，不做计算和表达式求解；
+
+函数调用在编译后程序运行时进行，并且分配内存；宏替换在编译前进行，不分配内存；
+
+
+
+### register
+
+寄存器是位于CPU内部的一小块高速缓存，用于临时存储CPU需要快速访问的数据。在C语言中，可以使用关键字`register`来声明变量为寄存器变量，以提示编译器将其存储到寄存器中。
+
+然而，在现代编译器中，通常会自动进行寄存器分配优化，所以显式地声明变量为寄存器变量并不一定能够产生实际效果。编译器会根据算法和性能考虑决定是否将某个变量分配到寄存器中。
+
+```c
+int main() {
+    register int a = 10;  // 声明一个寄存器变量a
+    // 使用a进行运算等操作
+    a += 5;
+    printf("%d\n", a);
+    return 0;
+}
+```
+
+当你使用`register`关键字声明一个变量时，并不能保证该变量一定会被分配到寄存器中。编译器会根据实际情况进行优化，可能会将其分配到内存中或者其他位置。
+
+### 宏定义有两个#的作用
+
+宏定义中的两个`##`符号是连接运算符，在预处理阶段用于将两个标识符（identifier）连接在一起形成一个新的标识符。这种操作称为标识符的拼接（token concatenation）。
+
+```c
+#include <stdio.h>
+#define CONCAT(a, b) a ## b
+int main() {
+    int ab = 10;
+    printf("%d\n", CONCAT(a, b)); // 将a和b拼接成ab
+    return 0;
+}
+```
+
+### pragma
+
+\#pragma  para  
+
+其中，para为参数。下面对一些常见的参数进行讲解。
+
+#### pragma message
+
+```c
+#include<stdio.h>      
+#define STR   
+void main(int argc,char*argv)    
+{    
+    printf(" 学习#pragma命令中message参数的使用!\n");
+    #ifdef STR   
+    	#pragma message("STR 已经定义过了")   
+    #endif  
+    return ;    
+}
+
+打印结果：
+在Linux环境下使用gcc编译运行的结果：
+root@ubuntu:/home# gcc message.c -o msg
+ message.c: In function 'main':
+ message.c:10:11: note: #pragma message: STR 已经定义过了
+root@ubuntu:/home# ./msg
+学习#pragma命令中message参数的使用!
+```
+
+选择message参数来实现信息的打 印输出。
+
+
+
+
 
 ## 定义和声明的区别
 
@@ -1864,6 +1997,26 @@ mode -- 字符串，表示文件的访问模式，可以是以下表格中的值
 
 
 ##### close
+
+##### rewind
+
+rewind()函数用于将文件指针重新指向文件的开头，同时清除和文件流相关的错误和eof标记，相当于调用fseek(stream, 0, SEEK_SET)，其原型如下：
+
+```
+
+void rewind(FILE * stream);
+
+【参数】stream为以打开文件的指针。
+typedef struct
+
+{
+    int _fd; // 文件号
+    int _cleft; // 缓冲区中剩下的字节数
+    int _mode; // 文件操作模式
+    char * _nextc; // 下一个字节的位置
+    char * _buff; // 文件缓冲区位置
+}FILE;
+```
 
 
 
@@ -3407,9 +3560,7 @@ buf：消息队列管理结构体，请参见消息队列内核结构说明部�
 
 ```c
 #include <sys/types.h>
-
 #include <sys/ipc.h>
-
 #include <sys/msg.h>
 
 int msgsnd(int msqid, const void *msgp, size_t msgsz, int msgflg)
@@ -5627,3 +5778,89 @@ Last in First Out
 
 ## 图
 
+
+
+# 进程通信
+
+## 消息队列
+
+![image-20250107091048076](README整理（不需背诵）.assets/image-20250107091048076.png)
+
+实现一个简单的生产者-消费者模型，使用消息队列进行通信。
+
+**生产者进程代码**
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <unistd.h>
+
+struct msgbuf {
+    long mtype;       // 消息类型
+    char mtext[100];  // 消息内容
+};
+
+int main() {
+    key_t key = ftok("progfile", 65); // 生成唯一键值
+    int msgid = msgget(key, 0666 | IPC_CREAT); // 创建消息队列
+
+    struct msgbuf message;
+    for (int i = 0; i < 5; i++) {
+        message.mtype = 1; // 设置消息类型
+        sprintf(message.mtext, "Message %d", i + 1); // 设置消息内容
+
+        msgsnd(msgid, &message, sizeof(message.mtext), 0); // 发送消息
+        printf("Producer sent: %s\n", message.mtext);
+        sleep(1); // 模拟生产过程
+    }
+
+    return 0;
+}
+
+```
+
+**消费者进程代码**
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <unistd.h>
+
+struct msgbuf {
+    long mtype;       // 消息类型
+    char mtext[100];  // 消息内容
+};
+
+int main() {
+    key_t key = ftok("progfile", 65); // 生成唯一键值
+    int msgid = msgget(key, 0666 | IPC_CREAT); // 获取消息队列
+
+    struct msgbuf message;
+
+    for (int i = 0; i < 5; i++) {
+        // 接收消息
+        msgrcv(msgid, &message, sizeof(message.mtext), 1, 0);
+        printf("Consumer received: %s\n", message.mtext);
+        sleep(2); // 模拟消费过程
+    }
+
+    // 删除消息队列
+    msgctl(msgid, IPC_RMID, NULL);
+
+    return 0;
+}
+
+```
+
+
+
+## 管道
+
+4294967295
+
+34359738368
